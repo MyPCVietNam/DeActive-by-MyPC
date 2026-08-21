@@ -1,6 +1,18 @@
 # EasyActive by MyPC
 
-Phiên bản: `1.8.11`
+Phiên bản: `1.8.12`
+
+## Thay đổi trong v1.8.12 (sửa launcher / UAC - khắc phục cửa sổ lóe rồi tắt)
+
+Sửa lỗi khiến `.bat`/`.cmd` có thể **lóe lên rồi tắt ngay** trên một số máy (cảm ơn phản hồi review). Các lỗi này nằm ở phần khởi động/UAC của `EasyActive-Menu.cmd`, không phải ở logic dọn:
+
+- **Kiểm tra quyền Admin không còn dùng `net session`** — lệnh này phụ thuộc dịch vụ Server (LanmanServer); nếu dịch vụ dừng/bất thường thì dù đang chạy Admin vẫn báo "không phải Admin", gây tự nâng quyền lặp / cửa sổ lóe. Nay dùng **integrity-level SID** (thuần batch, không phụ thuộc dịch vụ).
+- **Sửa lỗi `%errorlevel%` bị lấy giá trị quá sớm** trong block `if (...)` lồng nhau (lần kiểm tra thứ hai vô tình dùng errorlevel của `net session` cũ). Nay bắt mã trả về đúng thời điểm.
+- **Nâng quyền gọn hơn:** `Start-Process -Verb RunAs` trực tiếp trên `.cmd`, bỏ lớp `cmd /c` + quote lồng nhau dễ hỏng.
+
+Thêm **`EasyActive-Diagnose.cmd`**: chỉ kiểm tra, không sửa gì, luôn `pause`, và có **parser-check** — nếu `EasyActive-Engine.ps1` có lỗi cú pháp nó sẽ in `PARSE: FAIL` kèm dòng:cột thay vì để cửa sổ biến mất. Dùng file này để chẩn đoán nếu còn lóe.
+
+*(Logic dọn/nhận diện giữ nguyên như v1.8.11.)*
 
 ## Thay đổi trong v1.8.11 (dọn xoá thẳng + gộp menu + cập nhật 8/2026)
 

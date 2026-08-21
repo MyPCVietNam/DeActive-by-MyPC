@@ -49,7 +49,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $script:ToolName = 'EasyActive by MyPC'
-$script:Version = '1.8.11'
+$script:Version = '1.8.12'
 $script:Language = $Language.ToLowerInvariant()
 $script:RunId = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:ProgramDataRoot = Join-Path $env:ProgramData 'EasyActiveByMyPC'
