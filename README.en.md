@@ -1,6 +1,27 @@
 # EasyActive by MyPC
 
-Version: `1.8.9`
+Version: `1.8.11`
+
+## Changes in v1.8.11 (delete outright + merged menu + Aug 2026 update)
+
+- **Cleanup now deletes outright:** the cleanup modes now **permanently delete** crack folders/files (no more `.bak` rename or quarantine), so the machine is genuinely clean and the customer has nothing to hunt down and delete manually. Medium-confidence matches still require `-Force`; the **dry-run mode (menu 1)** still only previews. (Registry/hosts/service changes are still backed up as before.)
+- **Merged menu items 6 and 7:** there is now a single **"6. Check & assess license (read-only)"** that shows Windows/Office license status AND scans for crack traces with a verdict, in one pass. The menu is now 0–7.
+- **Detection updated to Aug 2026:**
+  - Expanded the illegal-KMS-server list (merged with WinCheck's threat-intel: added 0t.ng, mrxinwang, xspace.in, skms.netnr, kmscloud, kms9.msguides...) and switched to **substring matching** so all variants are caught (e.g. kms8/kms9.msguides.com).
+  - Reflected the current landscape: **KMS38 is dead** (removed from MAS in Nov 2025). The two main methods now are **HWID** (registers a real digital license with Microsoft — nearly undetectable offline) and **TSforge/KMS4k** (writes a fake KMS lease into the SPP store → far-future expiry). The tool covers TSforge via the "far-future activation expiry" check (now catching years 3000+).
+
+## Changes in v1.8.10 (cleaned folders are no longer re-flagged)
+
+Bug fix: after cleaning a MAS/crack folder, the report **still warned about the old trace**. Cause (two compounding factors):
+
+1. The default mode (no `-Force`) does not delete outright — it renames the item **in place** to `<name>.EasyActiveByMyPC.<RunId>.bak` to keep a recoverable backup.
+2. The scanner matched the signature on the **`.bak` name itself** (the "Microsoft-Activation-Scripts"... keyword still survives in the name) → it was re-detected on the next scan → still warned.
+
+Fixed:
+- **The scanner now skips the tool's own backups** (`*.EasyActiveByMyPC.*`) → it no longer re-detects what it just quarantined.
+- **Artifacts are now moved into the hidden Backups folder** (`...\EasyActiveByMyPC\Backups\<RunId>\QuarantinedArtifacts\`) instead of leaving a `.bak` in place. The crack folder no longer sits in ProgramData/ProgramFiles, so neither EasyActive nor other tools (WinCheck) see it, while it stays recoverable from Backups. (Same volume, so this is an atomic rename — safe.)
+
+*Note:* to **delete outright** (keep no backup), run with `-Force`. Ohook is not affected by this bug (it matches exact file names, not substrings).
 
 ## Changes in v1.8.9 (no false accusation for legitimate edition upgrades)
 

@@ -49,7 +49,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $script:ToolName = 'EasyActive by MyPC'
-$script:Version = '1.8.9'
+$script:Version = '1.8.11'
 $script:Language = $Language.ToLowerInvariant()
 $script:RunId = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:ProgramDataRoot = Join-Path $env:ProgramData 'EasyActiveByMyPC'
@@ -848,9 +848,8 @@ function Show-LauncherMenuVI {
     Write-Host '3. Chỉ dọn Office'
     Write-Host '4. Chỉ dọn Windows'
     Write-Host '5. Đọc key Windows OEM đi theo main / BIOS / UEFI'
-    Write-Host '6. Kiểm tra trạng thái license / kích hoạt Windows và Office (chỉ đọc)'
-    Write-Host '7. Đánh giá dấu vết crack / bản quyền Windows (chỉ đọc)'
-    Write-Host '8. Mở thư mục log và báo cáo'
+    Write-Host '6. Kiểm tra & đánh giá bản quyền Windows/Office (chỉ đọc)'
+    Write-Host '7. Mở thư mục log và báo cáo'
     Write-Host '0. Thoát'
     Write-Host ''
     Write-Host 'Giải thích nhanh:' -ForegroundColor Yellow
@@ -859,8 +858,7 @@ function Show-LauncherMenuVI {
     Write-Host '3 = Chỉ dọn Office, không ảnh hưởng Windows.'
     Write-Host '4 = Chỉ dọn Windows, không ảnh hưởng Office.'
     Write-Host '5 = Chỉ đọc key OEM, không kích hoạt, không thay đổi máy.'
-    Write-Host '6 = Chỉ xem Windows/Office đã kích hoạt hay chưa, dạng license gì. Không thay đổi máy.'
-    Write-Host '7 = Soi dấu vết crack (KMS/MAS/KMS38/HWID, hosts, registry, tác vụ...) và cho kết luận. Không thay đổi máy.'
+    Write-Host '6 = Xem trạng thái license Windows/Office VÀ soi dấu vết crack (KMS/MAS/TSforge/HWID, hosts, registry, tác vụ...) kèm kết luận. Không thay đổi máy.'
     Write-Host ''
 }
 
@@ -881,9 +879,8 @@ function Show-LauncherMenuEN {
     Write-Host '3. Clean Office only'
     Write-Host '4. Clean Windows only'
     Write-Host '5. Read OEM embedded key from motherboard / BIOS / UEFI'
-    Write-Host '6. Check Windows and Office license / activation status (read-only)'
-    Write-Host '7. Assess Windows crack / license tampering traces (read-only)'
-    Write-Host '8. Open logs and reports folder'
+    Write-Host '6. Check & assess Windows/Office license (read-only)'
+    Write-Host '7. Open logs and reports folder'
     Write-Host '0. Exit'
     Write-Host ''
 }
@@ -1013,10 +1010,10 @@ function Invoke-LauncherMenu {
     while ($true) {
         if ($script:Language -eq 'en') {
             Show-LauncherMenuEN
-            $choice = Read-Host 'Enter choice [0-8]'
+            $choice = Read-Host 'Enter choice [0-7]'
         } else {
             Show-LauncherMenuVI
-            $choice = Read-Host 'Nhập lựa chọn [0-8]'
+            $choice = Read-Host 'Nhập lựa chọn [0-7]'
         }
 
         Reset-LauncherRunOptions
@@ -1065,16 +1062,11 @@ function Invoke-LauncherMenu {
                 return $true
             }
             '6' {
-                Set-LauncherRunOption -Name 'CheckLicenseOnly'
-                Sync-ReportParameterSnapshot
-                return $true
-            }
-            '7' {
                 Set-LauncherRunOption -Name 'AssessCrack'
                 Sync-ReportParameterSnapshot
                 return $true
             }
-            '8' {
+            '7' {
                 Open-LogFolderFromLauncher
                 continue
             }
@@ -2877,6 +2869,10 @@ function Get-MASFileCandidates {
         try {
             $children = Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop
             foreach ($child in $children) {
+                # Skip our own quarantine backups (renamed to *.EasyActiveByMyPC.<RunId>.bak).
+                # Without this, a cleaned artifact is re-detected forever because the original
+                # crack keyword still survives inside the .bak name.
+                if ($child.Name -like '*.EasyActiveByMyPC.*') { continue }
                 $match = Test-MASArtifactName -Name $child.Name
                 if ($match.IsMatch) {
                     if ($root.Equals($publicDesktop, [StringComparison]::OrdinalIgnoreCase)) {
@@ -2930,31 +2926,23 @@ function Remove-MASFilesAndFolders {
             Confidence = $candidate.Confidence
         }
 
-        if ($Force) {
-            Invoke-SafeAction -Description "Remove activation artifact $($candidate.Path)" -Category 'FileArtifact' -Target $candidate.Path -Data $data -Action {
-                Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
-            } | Out-Null
+        # Cleanup means cleanup: delete the artifact outright. These are high-confidence, exact
+        # crack-tool names (a legit folder is never named e.g. AutoKMS / Microsoft-Activation-Scripts),
+        # so nothing is left behind for the customer to hunt down. Dry-run mode (menu 1) still only
+        # previews. Medium-confidence matches are skipped above unless -Force.
+        $localPath = $candidate.Path
+        Invoke-SafeAction -Description "Remove activation artifact $($candidate.Path)" -Category 'FileArtifact' -Target $candidate.Path -Data $data -Action {
+            Remove-Item -LiteralPath $localPath -Recurse -Force -ErrorAction Stop
+        } | Out-Null
 
-            Add-ReportListItem -ListName 'FilesRemovedOrRenamed' -Item ([pscustomobject]@{
-                Path = $candidate.Path
-                Operation = 'Remove'
-                ItemType = $candidate.ItemType
-                Reason = $candidate.Reason
-                Confidence = $candidate.Confidence
-                Mode = if ($script:DryRunMode) { 'WouldRemove' } else { 'Removed' }
-            })
-        } else {
-            $destination = Rename-PathToBackupSafe -Path $candidate.Path -Reason $candidate.Reason -Category 'FileArtifact'
-            Add-ReportListItem -ListName 'FilesRemovedOrRenamed' -Item ([pscustomobject]@{
-                Path = $candidate.Path
-                Destination = $destination
-                Operation = 'RenameToBak'
-                ItemType = $candidate.ItemType
-                Reason = $candidate.Reason
-                Confidence = $candidate.Confidence
-                Mode = if ($script:DryRunMode) { 'WouldRename' } else { 'Renamed' }
-            })
-        }
+        Add-ReportListItem -ListName 'FilesRemovedOrRenamed' -Item ([pscustomobject]@{
+            Path = $candidate.Path
+            Operation = 'Remove'
+            ItemType = $candidate.ItemType
+            Reason = $candidate.Reason
+            Confidence = $candidate.Confidence
+            Mode = if ($script:DryRunMode) { 'WouldRemove' } else { 'Removed' }
+        })
     }
 }
 
@@ -4430,16 +4418,18 @@ function Test-KnownKmsEmulatorDomain {
     if (($h.Split(':').Count -eq 2) -and ($h -match '^(.+):\d+$')) { $h = $Matches[1] }
     $h = $h.Trim().ToLowerInvariant()
 
-    # Curated list of well-known public KMS-emulator servers (crack). Not exhaustive; a public
-    # internet KMS host is itself already suspicious, but a match here is treated as definite.
-    $known = @(
-        'kms.loli.beer', 'kms.digiboy.ir', 'kms8.msguides.com', 'kms.msguides.com',
-        'kms.03k.org', 'kms.chinancce.com', 'kms.shuax.com', 'kms.cangshui.net',
-        'kms.lotro.cc', 'kms.moeclub.org', 'kms.library.hk', 'kms.lolico.moe',
-        'win.kms.moe', 'kms.wxlost.com', 'kms.ddns.net', 'kms.v0v.bid', 'zh.us.to'
+    # Known public KMS-emulator server patterns, matched as substrings (like WinCheck) so
+    # variants such as kms8/kms9.msguides.com are all caught. Current as of Aug 2026, merged
+    # with WinCheck's threat-intel list. A public internet KMS host is already suspicious on its
+    # own; a match here is treated as a definite crack signal.
+    $patterns = @(
+        'msguides', 'kms.loli', 'digiboy.ir', '0t.ng', 'kms.chinancce', 'kmscloud',
+        'kms.cangshui', 'kms.ddns.net', 'e8.us.to', 'zh.us.to', 'kms.mrxinwang',
+        'kms.xspace.in', 'skms.netnr', 'kms.03k.org', 'kms.shuax', 'kms.lotro',
+        'kms.moeclub', 'kms.library.hk', 'kms.lolico', 'kms.moe', 'kms.wxlost', 'kms.v0v'
     )
-    foreach ($d in $known) {
-        if ($h -eq $d -or $h.EndsWith('.' + $d)) { return $true }
+    foreach ($p in $patterns) {
+        if ($h.IndexOf($p, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
     }
     return $false
 }
@@ -5453,16 +5443,19 @@ function Invoke-Main {
         $script:Report.OS = Get-WindowsOSInfo
         Write-Log -Message (Get-UiText -Key 'AssessCrackMode') -Level 'INFO'
 
-        Write-Step -Number 2 -Name (Get-UiText -Key 'StepAssessCrack')
+        Write-Step -Number 2 -Name (Get-UiText -Key 'StepCheckLicense')
+        Invoke-LicenseStatusCheck
+
+        Write-Step -Number 3 -Name (Get-UiText -Key 'StepAssessCrack')
         Invoke-CrackAssessment
 
         $script:Report.NextSteps.Clear()
         $null = $script:Report.NextSteps.Add((Get-UiText -Key 'AsmNextStep'))
 
-        Write-Step -Number 3 -Name (Get-UiText -Key 'StepGenerateReport')
+        Write-Step -Number 4 -Name (Get-UiText -Key 'StepGenerateReport')
         Generate-ActivationReport
 
-        Write-Step -Number 4 -Name (Get-UiText -Key 'StepShowNextSteps')
+        Write-Step -Number 5 -Name (Get-UiText -Key 'StepShowNextSteps')
         Show-NextSteps
 
         Invoke-ReportOpenPrompt

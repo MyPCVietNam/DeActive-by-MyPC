@@ -1,6 +1,27 @@
 # EasyActive by MyPC
 
-Phiên bản: `1.8.9`
+Phiên bản: `1.8.11`
+
+## Thay đổi trong v1.8.11 (dọn xoá thẳng + gộp menu + cập nhật 8/2026)
+
+- **Dọn = xoá thẳng:** chế độ dọn nay **xoá hẳn** thư mục/file crack (không còn đổi tên `.bak` hay cách ly), để máy sạch thật, khách không phải đi tìm/xoá tay. Các mục có độ tin cậy trung bình vẫn cần `-Force`; **chế độ "Kiểm tra thử" (menu 1)** vẫn chỉ xem trước không xoá gì. (Registry/hosts/service vẫn có backup như cũ.)
+- **Gộp menu 6 và 7 thành 1:** giờ chỉ còn **"6. Kiểm tra & đánh giá bản quyền (chỉ đọc)"** — vừa xem trạng thái license Windows/Office, vừa soi dấu vết crack + kết luận, trong một lần chạy. Menu gọn lại còn 0–7.
+- **Cập nhật nhận diện tới 8/2026:**
+  - Bổ sung danh sách máy chủ KMS lậu (gộp threat-intel của WinCheck: thêm 0t.ng, mrxinwang, xspace.in, skms.netnr, kmscloud, kms9.msguides...) và chuyển sang **khớp chuỗi con** → bắt được mọi biến thể (vd kms8/kms9.msguides.com).
+  - Ghi nhận bối cảnh mới: **KMS38 đã bị khai tử** (MAS gỡ từ 11/2025). Hai phương thức chính hiện nay là **HWID** (đăng ký digital license thật với Microsoft — gần như không thể phát hiện offline) và **TSforge/KMS4k** (ghi lease KMS giả vào kho SPP → hạn xa). Tool đã phủ TSforge qua mục "hạn kích hoạt xa bất thường" (bắt cả năm 3000+).
+
+## Thay đổi trong v1.8.10 (dọn xong không còn báo lại thư mục cũ)
+
+Sửa lỗi: dọn thư mục MAS/crack xong nhưng báo cáo **vẫn cảnh báo dấu vết cũ**. Nguyên nhân (2 yếu tố cộng lại):
+
+1. Chế độ mặc định (không `-Force`) **không xoá thẳng** mà đổi tên **tại chỗ** thành `<tên>.EasyActiveByMyPC.<RunId>.bak` để giữ backup khôi phục được.
+2. Hàm quét khớp chữ ký ngay trên **tên `.bak`** (chuỗi "Microsoft-Activation-Scripts"... vẫn còn trong tên) → lần quét sau vẫn dò thấy → vẫn cảnh báo.
+
+Đã sửa:
+- **Quét bỏ qua chính file backup của tool** (`*.EasyActiveByMyPC.*`) → không tự dò lại đồ mình vừa cách ly.
+- **Chuyển hẳn artifact vào thư mục Backups ẩn** (`...\EasyActiveByMyPC\Backups\<RunId>\QuarantinedArtifacts\`) thay vì để `.bak` nằm nguyên chỗ cũ. Nhờ đó thư mục crack **không còn nằm trong ProgramData/ProgramFiles** — cả EasyActive lẫn công cụ khác (WinCheck) đều không còn thấy, mà vẫn khôi phục được từ Backups. (Cùng ổ đĩa nên là thao tác đổi tên nguyên tử, an toàn.)
+
+*Ghi chú:* nếu muốn **xoá thẳng** (không giữ backup), chạy với `-Force`. Ohook không bị lỗi này (nó khớp tên file chính xác, không khớp chuỗi con).
 
 ## Thay đổi trong v1.8.9 (không báo oan máy nâng cấp phiên bản hợp lệ)
 
