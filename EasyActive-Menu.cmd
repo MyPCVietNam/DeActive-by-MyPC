@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions
+
 set "TOOL_NAME=EasyActive by MyPC"
 set "TOOL_VERSION=1.8.12"
 set "LAC_ROOT=%ProgramData%\EasyActiveByMyPC"
@@ -9,7 +10,9 @@ title %TOOL_NAME%
 set "SCRIPT_DIR=%~dp0"
 set "PS1=%SCRIPT_DIR%EasyActive-Engine.ps1"
 set "POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-if exist "%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe" set "POWERSHELL=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+if exist "%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe" (
+    set "POWERSHELL=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+)
 
 if not exist "%POWERSHELL%" (
     echo.
@@ -24,45 +27,48 @@ if not exist "%PS1%" (
     echo.
     echo ERROR: Cannot find PowerShell script:
     echo        %PS1%
-    echo        ^(Antivirus may have quarantined it - check the quarantine.^)
     echo.
     pause
     exit /b 2
 )
 
-REM --- Reliable elevation check via integrity-level SID. "net session" depends on the Server
-REM --- (LanmanServer) service and can wrongly report "not admin" even when elevated, which then
-REM --- triggers an endless UAC re-spawn / flashing window. The High/System integrity SID is
-REM --- language-independent and only present when the process is actually elevated.
-set "IS_ELEVATED="
-whoami /groups 2>nul | find "S-1-16-12288" >nul 2>&1 && set "IS_ELEVATED=1"
-if not defined IS_ELEVATED whoami /groups 2>nul | find "S-1-16-16384" >nul 2>&1 && set "IS_ELEVATED=1"
-
-if defined IS_ELEVATED goto :Elevated
+rem Use the same WindowsPrincipal check as the PowerShell engine.
+rem Do NOT use "net session" here: it can fail even for administrators when
+rem the Server/LanmanServer service is stopped, causing an elevation loop.
+"%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "$id=[Security.Principal.WindowsIdentity]::GetCurrent(); $p=New-Object Security.Principal.WindowsPrincipal($id); if ($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
+set "ADMIN_RC=%errorlevel%"
+if "%ADMIN_RC%"=="0" goto :AdminReady
 
 echo.
-echo Administrator rights are required. Requesting UAC elevation...
+echo Administrator rights are required.
+echo Requesting UAC elevation...
 echo.
-if "%~1"=="" (
-    "%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
-) else (
-    "%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "try { Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
-)
+
+rem Start-Process supports the RunAs verb for .cmd files on Windows.
+rem Pass the target/arguments through environment variables to avoid fragile
+rem nested CMD/PowerShell quote parsing.
+set "EASYACTIVE_ELEVATE_TARGET=%~f0"
+set "EASYACTIVE_ELEVATE_ARGS=%*"
+"%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "$target=$env:EASYACTIVE_ELEVATE_TARGET; $argsText=$env:EASYACTIVE_ELEVATE_ARGS; if ([string]::IsNullOrWhiteSpace($argsText)) { Start-Process -FilePath $target -Verb RunAs } else { Start-Process -FilePath $target -ArgumentList $argsText -Verb RunAs }"
 set "UAC_RC=%errorlevel%"
-if not "%UAC_RC%"=="0" (
-    echo.
-    echo UAC elevation was cancelled or failed.
-    echo.
-    pause
-    exit /b 1
-)
+if not "%UAC_RC%"=="0" goto :ElevationFailed
 exit /b 0
 
-:Elevated
+:ElevationFailed
+echo.
+echo UAC elevation was cancelled or failed.
+echo PowerShell exit code: %UAC_RC%
+echo.
+pause
+exit /b 1
+
+:AdminReady
+
 if not "%~1"=="" (
     call :RunPowerShell %*
     goto :Done
 )
+
 call :RunPowerShell -LauncherMenu
 goto :Done
 

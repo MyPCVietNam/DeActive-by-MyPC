@@ -1,18 +1,14 @@
+﻿
+## v1.8.12 - Launcher hotfix
+
+- Replaced the `net session` admin check with WindowsPrincipal, avoiding false negatives when the Server/LanmanServer service is stopped.
+- Fixed stale `%errorlevel%` expansion inside a parenthesized CMD block.
+- Simplified UAC relaunch: PowerShell `Start-Process` launches the `.cmd` file directly with the `RunAs` verb, avoiding fragile nested `cmd /c` quoting.
+- Added `EasyActive-Diagnose.cmd`, a read-only hold-open startup diagnostic.
+
 # EasyActive by MyPC
 
-Version: `1.8.12`
-
-## Changes in v1.8.12 (launcher / UAC fix - stops the flash-and-close window)
-
-Fixes a bug where the `.bat`/`.cmd` could **flash and close immediately** on some machines (thanks to review feedback). The bugs were in the bootstrap/UAC part of `EasyActive-Menu.cmd`, not in the cleanup logic:
-
-- **Admin check no longer uses `net session`** - that command depends on the Server (LanmanServer) service; if it's stopped/abnormal it can report "not admin" even when elevated, causing an endless UAC re-spawn / flashing window. It now uses the **integrity-level SID** (pure batch, no service dependency).
-- **Fixed early `%errorlevel%` expansion** inside nested `if (...)` blocks (the second check accidentally used the old `net session` errorlevel). The return code is now captured at the right time.
-- **Simpler elevation:** `Start-Process -Verb RunAs` directly on the `.cmd`, dropping the fragile `cmd /c` + nested-quote layer.
-
-Added **`EasyActive-Diagnose.cmd`**: checks only, changes nothing, always `pause`s, and includes a **parser check** - if `EasyActive-Engine.ps1` has a syntax error it prints `PARSE: FAIL` with line:col instead of letting the window vanish. Use it to diagnose if flashing persists.
-
-*(Cleanup/detection logic is unchanged from v1.8.11.)*
+Version: `1.8.11`
 
 ## Changes in v1.8.11 (delete outright + merged menu + Aug 2026 update)
 
